@@ -1099,10 +1099,8 @@ LocalDeviceImpl::ConnectionComplete(struct hci_ev_conn_complete* event,
 
 	if (event->status == BT_OK) {
 		uint8 cod[3] = {0, 0, 0};
-
-		// TODO: Review, this rDevice is leaked
-		ConnectionIncoming* iConnection = new ConnectionIncoming(
-			new RemoteDevice(event->bdaddr, cod));
+		RemoteDevice rDevice(event->bdaddr, cod);
+		ConnectionIncoming* iConnection = new ConnectionIncoming(&rDevice);
 		iConnection->Show();
 
 		TRACE_BT("LocalDeviceImpl: %s: Address %s handle=%#x type=%d encrypt=%d\n", __FUNCTION__,
