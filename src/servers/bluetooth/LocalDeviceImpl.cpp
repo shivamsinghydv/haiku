@@ -295,13 +295,13 @@ LocalDeviceImpl::HandleExpectedRequest(struct hci_event_header* event,
 void
 LocalDeviceImpl::HandleEvent(struct hci_event_header* event)
 {
-/*
-	printf("### Incoming event: len = %d\n", event->elen);
-	for (int16 index = 0; index < event->elen + 2; index++) {
-		printf("%x:", ((uint8*)event)[index]);
-	}
-	printf("### \n");
-*/
+	/*
+		printf("### Incoming event: len = %d\n", event->elen);
+		for (int16 index = 0; index < event->elen + 2; index++) {
+			printf("%x:", ((uint8*)event)[index]);
+		}
+		printf("### \n");
+	*/
 	BMessage* request = NULL;
 	int32 eventIndexLocation;
 
@@ -312,11 +312,10 @@ LocalDeviceImpl::HandleEvent(struct hci_event_header* event)
 			struct hci_ev_cmd_complete* commandComplete
 				= JumpEventHeader<struct hci_ev_cmd_complete>(event);
 
-			TRACE_BT("LocalDeviceImpl: Incoming CommandComplete(%d) for %s\n", commandComplete->ncmd,
-				BluetoothCommandOpcode(commandComplete->opcode));
+			TRACE_BT("LocalDeviceImpl: Incoming CommandComplete(%d) for %s\n",
+				commandComplete->ncmd, BluetoothCommandOpcode(commandComplete->opcode));
 
-			request = FindPetition(event->ecode, commandComplete->opcode,
-				&eventIndexLocation);
+			request = FindPetition(event->ecode, commandComplete->opcode, &eventIndexLocation);
 
 			if (request != NULL)
 				CommandComplete(commandComplete, request, eventIndexLocation);
@@ -328,12 +327,11 @@ LocalDeviceImpl::HandleEvent(struct hci_event_header* event)
 			struct hci_ev_cmd_status* commandStatus
 				= JumpEventHeader<struct hci_ev_cmd_status>(event);
 
-			TRACE_BT("LocalDeviceImpl: Incoming CommandStatus(%d)(%s) for %s\n", commandStatus->ncmd,
-				BluetoothError(commandStatus->status),
+			TRACE_BT("LocalDeviceImpl: Incoming CommandStatus(%d)(%s) for %s\n",
+				commandStatus->ncmd, BluetoothError(commandStatus->status),
 				BluetoothCommandOpcode(commandStatus->opcode));
 
-			request = FindPetition(event->ecode, commandStatus->opcode,
-				&eventIndexLocation);
+			request = FindPetition(event->ecode, commandStatus->opcode, &eventIndexLocation);
 			if (request != NULL)
 				CommandStatus(commandStatus, request, eventIndexLocation);
 
@@ -350,8 +348,8 @@ LocalDeviceImpl::HandleEvent(struct hci_event_header* event)
 	}
 
 	if (request == NULL) {
-		TRACE_BT("LocalDeviceImpl: Event %s could not be understood or delivered\n",
-			BluetoothEvent(event->ecode));
+		// TRACE_BT("LocalDeviceImpl: Event %s could not be understood or delivered\n",
+		// BluetoothEvent(event->ecode));
 		HandleUnexpectedEvent(event);
 	}
 }
@@ -701,6 +699,24 @@ LocalDeviceImpl::CommandComplete(struct hci_ev_cmd_complete* event,
 			break;
 		}
 
+		case PACK_OPCODE(OGF_LINK_CONTROL, OCF_INQUIRY):
+		{
+			uint8 inquiryStatus = *(uint8*)(event + 1);
+
+			TRACE_BT("LocalDeviceImpl: Inquiry CommandComplete status=%x "
+					 "(controller sent CMD_COMPLETE instead of CMD_STATUS)\n",
+				inquiryStatus);
+
+			if (inquiryStatus != BT_OK) {
+				BMessage reply;
+				reply.what = BT_MSG_INQUIRY_COMPLETED;
+				reply.AddInt8("status", inquiryStatus);
+				request->SendReply(&reply);
+				ClearWantedEvent(request);
+			}
+			break;
+		}
+
 		// without clearing all events, no reply
 		case PACK_OPCODE(OGF_LINK_CONTROL, OCF_IO_CAPABILITY_REQUEST_REPLY):
 		case PACK_OPCODE(OGF_LINK_CONTROL, OCF_USER_CONFIRM_REPLY):
@@ -735,7 +751,6 @@ LocalDeviceImpl::CommandComplete(struct hci_ev_cmd_complete* event,
 			ClearWantedEvent(request);
 			break;
 		}
-
 		default:
 			TRACE_BT("LocalDeviceImpl: Command Complete not handled\n");
 			break;
